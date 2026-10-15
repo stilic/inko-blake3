@@ -142,4 +142,15 @@ fn pub tests(t: mut Tests) {
       t.equal(expected_hash, actual_hash)
     }
   })
+
+  t.test('Blake3 - custom length', fn (t) {
+    let custom_len = 16
+    let mut hasher = Blake3.with_length(custom_len)
+
+    hasher.write('hello'.to_byte_array)
+
+    let raw_bytes = hasher.finish_xof
+
+    t.equal(custom_len, raw_bytes.size)
+  })
 }

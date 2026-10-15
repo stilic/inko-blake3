@@ -306,18 +306,25 @@ type pub Blake3 {
   let @key_words: Array[Int]
   let @cv_stack: Array[Array[Int]]
   let @flags: Int
+  let @length: Int
 
-  fn static new_internal(key_words: Array[Int], flags: Int) -> Self {
+  fn static new_internal(key_words: Array[Int], flags: Int, length: Int) -> Self
+  {
     Self(
       ChunkState.new(key_words.clone, 0, flags),
       key_words,
       Array.with_capacity(54),
       flags,
+      length,
     )
   }
 
   fn pub static new -> Self {
-    new_internal(IV.clone, 0)
+    new_internal(IV.clone, 0, OUT_LEN)
+  }
+
+  fn pub static with_length(length: Int) -> Self {
+    new_internal(IV.clone, 0, length)
   }
 
   fn mut add_chunk_chaining_value(new_cv: Array[Int], total_chunks: Int) {
@@ -351,20 +358,12 @@ type pub Blake3 {
       input = input.slice(start: take, size: input.size - take)
     }
   }
-}
 
-impl Hasher for Blake3 {
-  fn pub mut write[B: Bytes](bytes: ref B) {
-    let ba = bytes.to_byte_array
-
-    update(ByteArraySlice.new(ba, 0, bytes.size))
-  }
-
-  fn pub move finish -> Hash {
-    let out_bytes = ByteArray.filled(with: 0, times: OUT_LEN)
+  fn pub move finish_xof -> ByteArray {
+    let out_bytes = ByteArray.filled(with: 0, times: @length)
 
     {
-      let output_slice = ByteArraySliceMut.new(mut out_bytes, 0, OUT_LEN)
+      let output_slice = ByteArraySliceMut.new(mut out_bytes, 0, @length)
       let mut output = @chunk_state.output
       let mut parent_nodes_remaining = @cv_stack.size
 
@@ -381,6 +380,18 @@ impl Hasher for Blake3 {
       output.root_output_bytes(output_slice)
     }
 
-    Hash.new(out_bytes)
+    out_bytes
+  }
+}
+
+impl Hasher for Blake3 {
+  fn pub mut write[B: Bytes](bytes: ref B) {
+    let ba = bytes.to_byte_array
+
+    update(ByteArraySlice.new(ba, 0, bytes.size))
+  }
+
+  fn pub move finish -> Hash {
+    Hash.new(finish_xof)
   }
 }
