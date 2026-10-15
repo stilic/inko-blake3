@@ -1,9 +1,12 @@
 # Ported from [the reference implementation](https://github.com/BLAKE3-team/BLAKE3/blob/1.5.0/reference_impl/reference_impl.rs).
 
-import std.cmp.(min)
-import std.crypto.hash.(Hash, Hasher)
-
-import blake3.util.(ByteArraySlice, ByteArraySliceMut, U32_MASK, u32_rotate_right, u32_to_le_bytes, u32_wrapping_add)
+import blake3.util (
+  ByteArraySlice, ByteArraySliceMut, U32_MASK, u32_rotate_right,
+  u32_to_le_bytes, u32_wrapping_add,
+)
+import std.bytes (Bytes)
+import std.cmp (min)
+import std.crypto.hash (Hash, Hasher)
 
 let OUT_LEN = 32
 let KEY_LEN = 32
@@ -16,45 +19,48 @@ let PARENT = 1 << 2
 let ROOT = 1 << 3
 
 let IV = [
-  0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19,
+  0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C,
+  0x1F83D9AB, 0x5BE0CD19,
 ]
 
 let MSG_PERMUTATION = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8]
 
 fn g(state: mut Array[Int], a: Int, b: Int, c: Int, d: Int, mx: Int, my: Int) {
-  state.set(a, u32_wrapping_add(u32_wrapping_add(state.get(a), state.get(b)), mx))
-  state.set(d, u32_rotate_right(state.get(d) ^ state.get(a), 16))
-  state.set(c, u32_wrapping_add(state.get(c), state.get(d)))
-  state.set(b, u32_rotate_right(state.get(b) ^ state.get(c), 12))
-  state.set(a, u32_wrapping_add(u32_wrapping_add(state.get(a), state.get(b)), my))
-  state.set(d, u32_rotate_right(state.get(d) ^ state.get(a), 8))
-  state.set(c, u32_wrapping_add(state.get(c), state.get(d)))
-  state.set(b, u32_rotate_right(state.get(b) ^ state.get(c), 7))
+  state.set(
+    a,
+    u32_wrapping_add(u32_wrapping_add(state.get(a).get, state.get(b).get), mx),
+  )
+  state.set(d, u32_rotate_right(state.get(d).get ^ state.get(a).get, 16))
+  state.set(c, u32_wrapping_add(state.get(c).get, state.get(d).get))
+  state.set(b, u32_rotate_right(state.get(b).get ^ state.get(c).get, 12))
+  state.set(
+    a,
+    u32_wrapping_add(u32_wrapping_add(state.get(a).get, state.get(b).get), my),
+  )
+  state.set(d, u32_rotate_right(state.get(d).get ^ state.get(a).get, 8))
+  state.set(c, u32_wrapping_add(state.get(c).get, state.get(d).get))
+  state.set(b, u32_rotate_right(state.get(b).get ^ state.get(c).get, 7))
 }
 
 fn round(state: mut Array[Int], m: ref Array[Int]) {
-  g(state, 0, 4, 8, 12, m.get(0), m.get(1))
-  g(state, 1, 5, 9, 13, m.get(2), m.get(3))
-  g(state, 2, 6, 10, 14, m.get(4), m.get(5))
-  g(state, 3, 7, 11, 15, m.get(6), m.get(7))
-  g(state, 0, 5, 10, 15, m.get(8), m.get(9))
-  g(state, 1, 6, 11, 12, m.get(10), m.get(11))
-  g(state, 2, 7, 8, 13, m.get(12), m.get(13))
-  g(state, 3, 4, 9, 14, m.get(14), m.get(15))
+  g(state, 0, 4, 8, 12, m.get(0).get, m.get(1).get)
+  g(state, 1, 5, 9, 13, m.get(2).get, m.get(3).get)
+  g(state, 2, 6, 10, 14, m.get(4).get, m.get(5).get)
+  g(state, 3, 7, 11, 15, m.get(6).get, m.get(7).get)
+  g(state, 0, 5, 10, 15, m.get(8).get, m.get(9).get)
+  g(state, 1, 6, 11, 12, m.get(10).get, m.get(11).get)
+  g(state, 2, 7, 8, 13, m.get(12).get, m.get(13).get)
+  g(state, 3, 4, 9, 14, m.get(14).get, m.get(15).get)
 }
 
 fn permute(m: mut Array[Int]) {
   let mut permuted = Array.filled(with: 0, times: 16)
 
-  0.to(15).iter.each fn (i) {
-    permuted.set(i, m.get(MSG_PERMUTATION.get(i)))
-  }
+  for i in 0.to(15) { permuted.set(i, m.get(MSG_PERMUTATION.get(i).get).get) }
 
   m.clear
 
-  permuted.iter.each fn (word) {
-    m.push(word)
-  }
+  for word in permuted { m.push(word) }
 }
 
 fn compress(
@@ -65,18 +71,18 @@ fn compress(
   flags: Int,
 ) -> Array[Int] {
   let state = [
-    chaining_value.get(0),
-    chaining_value.get(1),
-    chaining_value.get(2),
-    chaining_value.get(3),
-    chaining_value.get(4),
-    chaining_value.get(5),
-    chaining_value.get(6),
-    chaining_value.get(7),
-    IV.get(0),
-    IV.get(1),
-    IV.get(2),
-    IV.get(3),
+    chaining_value.get(0).get,
+    chaining_value.get(1).get,
+    chaining_value.get(2).get,
+    chaining_value.get(3).get,
+    chaining_value.get(4).get,
+    chaining_value.get(5).get,
+    chaining_value.get(6).get,
+    chaining_value.get(7).get,
+    IV.get(0).get,
+    IV.get(1).get,
+    IV.get(2).get,
+    IV.get(3).get,
     counter & U32_MASK,
     counter >>> 32,
     block_len,
@@ -98,9 +104,9 @@ fn compress(
   permute(mut block)
   round(mut state, block)
 
-  0.to(7).iter.each fn (i) {
-    state.set(i, state.get(i) ^ state.get(i + 8))
-    state.set(i + 8, state.get(i + 8) ^ chaining_value.get(i))
+  for i in 0.to(7) {
+    state.set(i, state.get(i).get ^ state.get(i + 8).get)
+    state.set(i + 8, state.get(i + 8).get ^ chaining_value.get(i).get)
   }
 
   state
@@ -109,26 +115,27 @@ fn compress(
 fn first_8_words(compression_output: ref Array[Int]) -> Array[Int] {
   let words = Array.with_capacity(8)
 
-  0.to(7).iter.each fn (i) {
-    words.push(compression_output.get(i))
-  }
+  for i in 0.to(7) { words.push(compression_output.get(i).get) }
 
   words
 }
 
 fn words_from_little_endian_bytes(bytes: ref ByteArray, words: mut Array[Int]) {
-  let mut byte = bytes.iter
+  let mut word_index = 0
 
-  0.until(bytes.size).step_by(4).each_with_index fn (word_index, byte_range) {
-    let word = 0.to(3).iter.reduce(words.get(word_index)) fn (word, i) {
-      word | (bytes.get(byte_range.start + i) << (i * 8))
+  for byte_offset in 0.until(bytes.size).step_by(4) {
+    let mut word = words.get(word_index).get
+
+    for i in 0.to(3) {
+      word = word | (bytes.get(byte_offset + i).get << (i * 8))
     }
 
     words.set(word_index, word)
+    word_index += 1
   }
 }
 
-class Output {
+type Output {
   let @input_chaining_value: Array[Int]
   let @block_words: Array[Int]
   let @counter: Int
@@ -136,21 +143,21 @@ class Output {
   let @flags: Int
 
   fn chaining_value -> Array[Int] {
-    first_8_words(compress(
-      @input_chaining_value,
-      @block_words,
-      @counter,
-      @block_len,
-      @flags,
-    ))
+    first_8_words(
+      compress(
+        @input_chaining_value,
+        @block_words,
+        @counter,
+        @block_len,
+        @flags,
+      ),
+    )
   }
 
   fn root_output_bytes(out_slice: ByteArraySliceMut) {
     let mut output_block_counter = 0
 
-    0.until(out_slice.size).step_by(2 * OUT_LEN).each fn move (out_block_range) {
-      let mut out_block = out_slice.slice(start: out_block_range.start, size: 2 * OUT_LEN).to_byte_array
-
+    for out_block_start in 0.until(out_slice.size).step_by(2 * OUT_LEN) {
       let words = compress(
         @input_chaining_value,
         @block_words,
@@ -159,16 +166,27 @@ class Output {
         @flags | ROOT,
       )
 
-      words.iter.zip(0.until(out_block.size).step_by(4)).each fn (pair) {
-        let word = pair.0
-        let out_word_range = pair.1
-        let bytes = u32_to_le_bytes(word)
+      let mut out_word_offset = 0
 
-        if out_block_range.size % 4 != 0 {
-          bytes.resize(size: out_block_range.size % 4, value: 0)
+      for word in words {
+        let remaining_size = out_slice.size - out_block_start
+        let actual_block_size = min(2 * OUT_LEN, remaining_size)
+
+        if out_word_offset >= actual_block_size { break }
+
+        let mut bytes = u32_to_le_bytes(word)
+
+        if
+          actual_block_size % 4 != 0 and out_word_offset + 4 > actual_block_size
+        {
+          bytes.resize(size: actual_block_size % 4, value: 0)
         }
 
-        out_slice.replace(start: out_block_range.start + out_word_range.start, bytes: bytes)
+        out_slice.replace(
+          start: out_block_start + out_word_offset,
+          bytes: bytes,
+        )
+        out_word_offset += 4
       }
 
       output_block_counter += 1
@@ -176,23 +194,27 @@ class Output {
   }
 }
 
-class ChunkState {
-  let @chaining_value: Array[Int]
+type ChunkState {
+  let mut @chaining_value: Array[Int]
   let @chunk_counter: Int
-  let @block: ByteArray
-  let @block_len: Int
-  let @blocks_compressed: Int
+  let mut @block: ByteArray
+  let mut @block_len: Int
+  let mut @blocks_compressed: Int
   let @flags: Int
 
-  fn pub static new(key_words: Array[Int], chunk_counter: Int, flags: Int) -> ChunkState {
-    ChunkState {
-      @chaining_value = key_words,
-      @chunk_counter = chunk_counter,
-      @block = ByteArray.filled(with: 0, times: BLOCK_LEN),
-      @block_len = 0,
-      @blocks_compressed = 0,
-      @flags = flags,
-    }
+  fn pub static new(
+    key_words: Array[Int],
+    chunk_counter: Int,
+    flags: Int,
+  ) -> Self {
+    Self(
+      key_words,
+      chunk_counter,
+      ByteArray.filled(with: 0, times: BLOCK_LEN),
+      0,
+      0,
+      flags,
+    )
   }
 
   fn len -> Int {
@@ -200,11 +222,7 @@ class ChunkState {
   }
 
   fn start_flag -> Int {
-    if @blocks_compressed == 0 {
-      CHUNK_START
-    } else {
-      0
-    }
+    if @blocks_compressed == 0 { CHUNK_START } else { 0 }
   }
 
   fn mut update(input: ByteArraySlice) {
@@ -216,13 +234,15 @@ class ChunkState {
 
         words_from_little_endian_bytes(@block, mut block_words)
 
-        @chaining_value = first_8_words(compress(
-          @chaining_value,
-          block_words,
-          @chunk_counter,
-          BLOCK_LEN,
-          @flags | start_flag,
-        ))
+        @chaining_value = first_8_words(
+          compress(
+            @chaining_value,
+            block_words,
+            @chunk_counter,
+            BLOCK_LEN,
+            @flags | start_flag,
+          ),
+        )
 
         @blocks_compressed += 1
         @block = ByteArray.filled(with: 0, times: BLOCK_LEN)
@@ -232,8 +252,10 @@ class ChunkState {
       let want = BLOCK_LEN - @block_len
       let take = min(want, input.size)
 
-      ByteArraySliceMut.new(mut @block, start: 0, size: @block.size)
-        .replace(start: @block_len, bytes: input.slice(start: 0, size: take).to_byte_array)
+      ByteArraySliceMut.new(mut @block, start: 0, size: @block.size).replace(
+        start: @block_len,
+        bytes: input.slice(start: 0, size: take).to_byte_array,
+      )
       @block_len += take
       input = input.slice(start: take, size: input.size - take)
     }
@@ -244,13 +266,13 @@ class ChunkState {
 
     words_from_little_endian_bytes(@block, mut block_words)
 
-    Output {
-      @input_chaining_value = @chaining_value.clone,
-      @block_words = block_words,
-      @counter = @chunk_counter,
-      @block_len = @block_len,
-      @flags = @flags | start_flag | CHUNK_END,
-    }
+    Output(
+      @chaining_value.clone,
+      block_words,
+      @chunk_counter,
+      @block_len,
+      @flags | start_flag | CHUNK_END,
+    )
   }
 }
 
@@ -262,18 +284,12 @@ fn parent_output(
 ) -> Output {
   let block_words = Array.filled(with: 0, times: 16)
 
-  0.to(7).iter.each fn (i) {
-    block_words.set(i, left_child_cv.get(i))
-    block_words.set(i + 8, right_child_cv.get(i))
+  for i in 0.to(7) {
+    block_words.set(i, left_child_cv.get(i).get)
+    block_words.set(i + 8, right_child_cv.get(i).get)
   }
 
-  Output {
-    @input_chaining_value = key_words.clone,
-    @block_words = block_words,
-    @counter = 0,
-    @block_len = BLOCK_LEN,
-    @flags = PARENT | flags,
-  }
+  Output(key_words.clone, block_words, 0, BLOCK_LEN, PARENT | flags)
 }
 
 fn parent_cv(
@@ -285,22 +301,22 @@ fn parent_cv(
   parent_output(left_child_cv, right_child_cv, key_words, flags).chaining_value
 }
 
-class pub Blake3 {
-  let @chunk_state: ChunkState
+type pub Blake3 {
+  let mut @chunk_state: ChunkState
   let @key_words: Array[Int]
   let @cv_stack: Array[Array[Int]]
   let @flags: Int
 
-  fn static new_internal(key_words: Array[Int], flags: Int) -> Blake3 {
-    Blake3 {
-      @chunk_state = ChunkState.new(key_words.clone, 0, flags),
-      @key_words = key_words,
-      @cv_stack = Array.with_capacity(54),
-      @flags = flags,
-    }
+  fn static new_internal(key_words: Array[Int], flags: Int) -> Self {
+    Self(
+      ChunkState.new(key_words.clone, 0, flags),
+      key_words,
+      Array.with_capacity(54),
+      flags,
+    )
   }
 
-  fn pub static new -> Blake3 {
+  fn pub static new -> Self {
     new_internal(IV.clone, 0)
   }
 
@@ -309,7 +325,7 @@ class pub Blake3 {
     let mut total_chunks = total_chunks
 
     while total_chunks & 1 == 0 {
-      new_cv = parent_cv(@cv_stack.pop.unwrap.clone, new_cv, @key_words, @flags)
+      new_cv = parent_cv(@cv_stack.pop.get.clone, new_cv, @key_words, @flags)
       total_chunks >>>= 1
     }
 
@@ -338,29 +354,31 @@ class pub Blake3 {
 }
 
 impl Hasher for Blake3 {
-  fn pub mut write(bytes: ref ByteArray) {
-    update(ByteArraySlice.new(bytes, 0, bytes.size))
+  fn pub mut write[B: Bytes](bytes: ref B) {
+    let ba = bytes.to_byte_array
+
+    update(ByteArraySlice.new(ba, 0, bytes.size))
   }
 
   fn pub move finish -> Hash {
     let out_bytes = ByteArray.filled(with: 0, times: OUT_LEN)
 
     {
-      let out_slice = ByteArraySliceMut.new(mut out_bytes, 0, OUT_LEN)
+      let output_slice = ByteArraySliceMut.new(mut out_bytes, 0, OUT_LEN)
       let mut output = @chunk_state.output
       let mut parent_nodes_remaining = @cv_stack.size
 
       while parent_nodes_remaining > 0 {
         parent_nodes_remaining -= 1
         output = parent_output(
-          @cv_stack.get(parent_nodes_remaining),
+          @cv_stack.get(parent_nodes_remaining).get,
           output.chaining_value,
           @key_words,
           @flags,
         )
       }
 
-      output.root_output_bytes(out_slice)
+      output.root_output_bytes(output_slice)
     }
 
     Hash.new(out_bytes)

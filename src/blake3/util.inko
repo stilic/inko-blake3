@@ -2,6 +2,7 @@ let pub U32_MASK = 0xFFFFFFFF
 
 fn pub u32_rotate_right(int: Int, count: Int) -> Int {
   let int = int & U32_MASK
+
   ((int >> count) | (int << (32 - count))) & U32_MASK
 }
 
@@ -20,17 +21,13 @@ fn pub u32_wrapping_add(int1: Int, int2: Int) -> Int {
   (int1 + int2) & U32_MASK
 }
 
-class pub ByteArraySlice {
+type pub ByteArraySlice {
   let @bytes: ref ByteArray
   let @start: Int
   let @size: Int
 
-  fn pub static new(bytes: ref ByteArray, start: Int, size: Int) -> ByteArraySlice {
-    ByteArraySlice {
-      @bytes = bytes,
-      @start = start,
-      @size = size,
-    }
+  fn pub static new(bytes: ref ByteArray, start: Int, size: Int) -> Self {
+    Self(bytes, start, size)
   }
 
   fn pub slice(start: Int, size: Int) -> ByteArraySlice {
@@ -38,7 +35,11 @@ class pub ByteArraySlice {
   }
 
   fn pub to_byte_array -> ByteArray {
-    @bytes.slice(@start, @size)
+    let mut arr = ByteArray.filled(with: 0, times: @size)
+
+    for i in 0.until(@size) { arr.set(i, @bytes.get(@start + i).get) }
+
+    arr
   }
 
   fn pub size -> Int {
@@ -46,22 +47,18 @@ class pub ByteArraySlice {
   }
 }
 
-class pub ByteArraySliceMut {
+type pub ByteArraySliceMut {
   let @bytes: mut ByteArray
   let @start: Int
   let @size: Int
 
-  fn pub static new(bytes: mut ByteArray, start: Int, size: Int) -> ByteArraySliceMut {
-    ByteArraySliceMut {
-      @bytes = bytes,
-      @start = start,
-      @size = size,
-    }
+  fn pub static new(bytes: mut ByteArray, start: Int, size: Int) -> Self {
+    Self(bytes, start, size)
   }
 
   fn pub mut replace(start: Int, bytes: ref ByteArray) {
-    0.until(bytes.size).iter.each fn (i) {
-      @bytes.set(@start + start + i, bytes.get(i))
+    for i in 0.until(bytes.size) {
+      @bytes.set(@start + start + i, bytes.get(i).get)
     }
   }
 
@@ -70,7 +67,11 @@ class pub ByteArraySliceMut {
   }
 
   fn pub to_byte_array -> ByteArray {
-    @bytes.slice(@start, @size)
+    let mut arr = ByteArray.filled(with: 0, times: @size)
+
+    for i in 0.until(@size) { arr.set(i, @bytes.get(@start + i).get) }
+
+    arr
   }
 
   fn pub size -> Int {

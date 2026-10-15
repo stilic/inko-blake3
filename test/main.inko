@@ -1,15 +1,19 @@
-import std.env
-import std.test.(Filter, Tests)
-
 import blake3.test_blake3
+import std.env
+import std.test (Filter, Tests)
 
-class async Main {
+type async Main {
   fn async main {
     let tests = Tests.new
 
     test_blake3.tests(tests)
 
-    tests.filter = Filter.from_string(env.arguments.opt(0).unwrap_or(''))
+    let filter_string = match env.arguments.get(0) {
+      case Ok(arg) -> arg
+      case Error(_) -> ''
+    }
+
+    tests.filter = Filter.from_string(filter_string)
     tests.run
   }
 }
